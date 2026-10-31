@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabaseServer';
 import { getCurrentUserRole } from '@/lib/auth';
 import { MemberCard } from '@/components/MemberCard';
+import { DownloadReportButton } from '@/components/DownloadReportButton';
 import Link from 'next/link';
 
 export default function MembersPage() {
@@ -30,12 +31,15 @@ async function MembersContent() {
 
   return (
     <div className="max-w-md mx-auto p-4 pb-24 flex-1 w-full">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-start mb-6">
         <div>
           <h1 className="text-xl font-bold">🏸 Group Balances</h1>
-          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">
-            {role} View
-          </span>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">
+              {role} View
+            </span>
+            <DownloadReportButton members={members || []} />
+          </div>
         </div>
         {isAdmin && (
           <div className="flex items-center gap-2">
