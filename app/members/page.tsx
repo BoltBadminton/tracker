@@ -4,8 +4,6 @@ import { getCurrentUserRole } from '@/lib/auth';
 import { MemberCard } from '@/components/MemberCard';
 import Link from 'next/link';
 
-export const dynamic = 'force-dynamic';
-
 export default function MembersPage() {
   return (
     <Suspense
