@@ -1,11 +1,26 @@
-'use client';
-export const dynamic = 'force-dynamic';
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabaseServer';
 import { getCurrentUserRole } from '@/lib/auth';
 import { MemberCard } from '@/components/MemberCard';
 import Link from 'next/link';
 
-export default async function MembersPage() {
+export const dynamic = 'force-dynamic';
+
+export default function MembersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-md mx-auto p-4 text-center text-gray-500 text-sm">
+          Loading group balances...
+        </div>
+      }
+    >
+      <MembersContent />
+    </Suspense>
+  );
+}
+
+async function MembersContent() {
   const supabase = await createClient();
   const role = await getCurrentUserRole();
   const isAdmin = role === 'admin';
