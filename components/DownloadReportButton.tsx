@@ -29,7 +29,7 @@ export function DownloadReportButton({ members }: { members: MemberBalance[] }) 
 
     const today = new Date().toISOString().split('T')[0];
     link.href = url;
-    link.download = `Badminton_Balances_${today}.csv`;
+    link.download = `Bolt_Badminton_Report_${today}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -40,26 +40,29 @@ export function DownloadReportButton({ members }: { members: MemberBalance[] }) 
     if (!members || members.length === 0) return;
 
     const today = new Date().toLocaleDateString();
-    let summaryText = `🏸 *Badminton Club Balances (${today})* 🏸\n\n`;
+    let summaryText = `🏸 *Bolt Badminton Club Balances (${today})* 🏸\n\n`;
 
     members.forEach((m) => {
       const balance = Number(m.current_balance) || 0;
-      const status = balance < 0 ? `₹${Math.abs(balance)} DUE` : balance > 0 ? `₹${balance} ADV` : 'Settled';
+      const status =
+        balance < 0
+          ? `₹${Math.abs(balance)} DUE`
+          : balance > 0
+          ? `₹${balance} ADV`
+          : 'Settled';
       summaryText += `• *${m.name || 'Player'}*: ${status}\n`;
     });
 
-    summaryText += `\n_Generated via Latest Tracker_`;
+    summaryText += `\n_Generated via Bolt Club Tracker_`;
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Badminton Club Report',
+          title: 'Bolt Badminton Club Report',
           text: summaryText,
         });
         return;
-      } catch (err) {
-        // Fallback if user cancels or native share fails
-      }
+      } catch (err) {}
     }
 
     const encodedText = encodeURIComponent(summaryText);
@@ -71,8 +74,7 @@ export function DownloadReportButton({ members }: { members: MemberBalance[] }) 
       <button
         onClick={handleDownload}
         type="button"
-        className="inline-flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition"
-        title="Download CSV report"
+        className="inline-flex items-center gap-1 bg-white hover:bg-slate-100 text-slate-800 border-2 border-slate-900 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
       >
         <span>📥</span> CSV
       </button>
@@ -80,13 +82,10 @@ export function DownloadReportButton({ members }: { members: MemberBalance[] }) 
       <button
         onClick={handleWhatsAppShare}
         type="button"
-        className="inline-flex items-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition border border-emerald-200"
-        title="Share report to WhatsApp"
+        className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white border-2 border-slate-900 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
       >
         <span>💬</span> WhatsApp
       </button>
     </div>
   );
 }
-
-

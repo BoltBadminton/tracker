@@ -24,11 +24,13 @@ export default function MemberCard({ member, isAdmin }: MemberProps) {
   const [editPhone, setEditPhone] = useState(member.phone || '');
   const [editBalance, setEditBalance] = useState(Number(member.current_balance).toFixed(2));
   const [saving, setSaving] = useState(false);
+  const [settling, setSettling] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const isNegative = member.current_balance < 0;
-  const isLow = member.current_balance >= 0 && member.current_balance < 100;
-  const dueAmount = Math.abs(member.current_balance);
+  const balanceNumber = Number(member.current_balance) || 0;
+  const isNegative = balanceNumber < 0;
+  const isLow = balanceNumber >= 0 && balanceNumber < 100;
+  const dueAmount = Math.abs(balanceNumber);
 
   const ORGANIZER_UPI_ID = 'sam.prabhu143@pingpay';
   const ORGANIZER_NAME = 'Nani';
@@ -44,6 +46,43 @@ export default function MemberCard({ member, isAdmin }: MemberProps) {
         })
       : null;
 
+  const initials = member.name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase();
+
+  // One-click settle due: automatically inserts into deposits table
+  const handleQuickSettle = async () => {
+    if (dueAmount <= 0) return;
+
+    const confirmed = window.confirm(
+      `Confirm settlement of ₹${dueAmount.toFixed(2)} for ${member.name}?\n\nThis will credit their ledger and clear their due.`
+    );
+    if (!confirmed) return;
+
+    setSettling(true);
+    try {
+      const { error } = await supabase.from('deposits').insert([
+        {
+          member_id: member.member_id,
+          amount: dueAmount,
+          payment_mode: 'UPI Settlement',
+          note: `Quick one-click clearance of due ₹${dueAmount.toFixed(2)}`,
+        },
+      ]);
+
+      if (error) throw error;
+      router.refresh();
+    } catch (err: any) {
+      alert(`Failed to settle balance: ${err.message}`);
+    } finally {
+      setSettling(false);
+    }
+  };
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editName.trim()) return alert('Name cannot be empty');
@@ -54,7 +93,6 @@ export default function MemberCard({ member, isAdmin }: MemberProps) {
     setSaving(true);
 
     try {
-      // 1. Update player name & phone
       const { error: memberError } = await supabase
         .from('members')
         .update({
@@ -65,7 +103,6 @@ export default function MemberCard({ member, isAdmin }: MemberProps) {
 
       if (memberError) throw memberError;
 
-      // 2. If balance changed, log adjustment in deposits
       const currentVal = Number(member.current_balance);
       const difference = targetBalance - currentVal;
 
@@ -115,58 +152,98 @@ export default function MemberCard({ member, isAdmin }: MemberProps) {
 
   return (
     <>
-      <div className="p-4 bg-white border border-gray-100 rounded-xl shadow-xs flex justify-between items-center">
-        <div>
-          <div className="flex items-center gap-1.5">
-            <p className="font-semibold text-gray-900">{member.name}</p>
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditName(member.name);
-                  setEditPhone(member.phone || '');
-                  setEditBalance(Number(member.current_balance).toFixed(2));
-                  setIsEditing(true);
-                }}
-                className="text-gray-400 hover:text-gray-700 text-xs p-0.5 cursor-pointer"
-                title="Edit Player Details"
-              >
-                ✏️
-              </button>
-            )}
+      <div className="bg-white border-2 border-slate-900 rounded-2xl p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:shadow-md transition-all flex justify-between items-center gap-3">
+        {/* Left: Avatar + Player Info */}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-slate-900 text-white font-black text-xs flex items-center justify-center shrink-0 tracking-wider">
+            {initials || 'P'}
           </div>
-          <p className="text-xs text-gray-500">{member.phone || 'No phone'}</p>
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="font-bold text-slate-900 text-sm tracking-tight truncate">
+                {member.name}
+              </p>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditName(member.name);
+                    setEditPhone(member.phone || '');
+                    setEditBalance(Number(member.current_balance).toFixed(2));
+                    setIsEditing(true);
+                  }}
+                  className="text-slate-400 hover:text-slate-800 text-xs p-1 cursor-pointer transition"
+                  title="Edit Player Details"
+                >
+                  ✏️
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 font-mono truncate mt-0.5">
+              {member.phone || 'No phone'}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="text-right mr-1">
+        {/* Right: Balance + Actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="text-right">
             <p
-              className={`text-base font-bold ${
-                isNegative ? 'text-red-600' : isLow ? 'text-amber-500' : 'text-emerald-600'
+              className={`text-base font-black tabular-nums tracking-tight ${
+                isNegative
+                  ? 'text-rose-600'
+                  : isLow
+                  ? 'text-amber-600'
+                  : 'text-emerald-600'
               }`}
             >
-              ₹{Number(member.current_balance).toFixed(2)}
+              ₹{dueAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
-            <span className="text-[10px] uppercase font-semibold text-gray-400">
-              {isNegative ? 'Due' : isLow ? 'Low' : 'Available'}
+            <span
+              className={`inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md mt-0.5 ${
+                isNegative
+                  ? 'bg-rose-100 text-rose-700'
+                  : isLow
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-emerald-100 text-emerald-800'
+              }`}
+            >
+              {isNegative ? 'Due' : isLow ? 'Low' : 'Advance'}
             </span>
           </div>
 
-          {isAdmin && isNegative && (
-            <div className="flex items-center gap-1">
+          {/* Action buttons */}
+          {isNegative && (
+            <div className="flex items-center gap-1.5 ml-1">
+              {/* One-Click Admin Settle Button */}
+              {isAdmin && (
+                <button
+                  onClick={handleQuickSettle}
+                  disabled={settling}
+                  className="h-8 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs active:scale-95 transition cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                  title="One-Click Settle: Mark full due as paid"
+                >
+                  {settling ? '...' : '✓ Clear'}
+                </button>
+              )}
+
+              {/* QR Modal Button */}
               <button
                 onClick={() => setShowQr(true)}
-                className="bg-gray-900 text-white p-1.5 rounded-lg text-xs hover:bg-black font-semibold cursor-pointer"
-                title="Show QR"
+                className="w-8 h-8 rounded-xl bg-slate-900 text-white hover:bg-black flex items-center justify-center text-[10px] font-black active:scale-95 transition cursor-pointer"
+                title="Pay via UPI QR"
               >
                 QR
               </button>
-              {whatsappUrl && (
+
+              {/* Admin WhatsApp Reminder */}
+              {isAdmin && whatsappUrl && (
                 <a
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-green-600 text-white px-2 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
+                  className="w-8 h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center text-xs active:scale-95 transition cursor-pointer"
                   title="WhatsApp Reminder"
                 >
                   💬
@@ -177,43 +254,47 @@ export default function MemberCard({ member, isAdmin }: MemberProps) {
         </div>
       </div>
 
-      {/* Edit Player Details Modal */}
+      {/* Edit Modal */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white border-2 border-slate-900 w-full max-w-sm rounded-2xl p-6 shadow-2xl relative">
             <button
               onClick={() => setIsEditing(false)}
-              className="absolute top-3 right-3 text-gray-400 hover:text-gray-700 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-sm font-bold cursor-pointer"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-xs font-bold cursor-pointer"
             >
               ✕
             </button>
-            <h3 className="text-base font-bold text-gray-900 mb-4">Player Details</h3>
+            <h3 className="text-base font-extrabold text-slate-900 mb-4">Edit Player</h3>
 
-            <form onSubmit={handleUpdate} className="space-y-3.5">
+            <form onSubmit={handleUpdate} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Player Name</label>
+                <label className="block text-[11px] uppercase tracking-wider font-bold text-slate-600 mb-1">
+                  Player Name
+                </label>
                 <input
                   type="text"
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Phone Number</label>
+                <label className="block text-[11px] uppercase tracking-wider font-bold text-slate-600 mb-1">
+                  Phone Number
+                </label>
                 <input
                   type="tel"
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
                   placeholder="10-digit mobile number"
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-300 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-[11px] uppercase tracking-wider font-bold text-slate-600 mb-1">
                   Current Balance (₹)
                 </label>
                 <input
@@ -221,10 +302,10 @@ export default function MemberCard({ member, isAdmin }: MemberProps) {
                   step="any"
                   value={editBalance}
                   onChange={(e) => setEditBalance(e.target.value)}
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg text-gray-900 font-bold bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full h-11 px-3.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">
-                  Enter positive for deposit (e.g. <code>250</code>), negative for dues (e.g. <code>-207</code>).
+                <p className="text-[11px] text-slate-500 mt-1.5">
+                  Positive for advance credit (e.g. <code>250</code>), negative for dues (e.g. <code>-207</code>).
                 </p>
               </div>
 
@@ -232,26 +313,26 @@ export default function MemberCard({ member, isAdmin }: MemberProps) {
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
-                  className="w-1/2 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 cursor-pointer"
+                  className="w-1/2 h-11 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving || deleting}
-                  className="w-1/2 py-2.5 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
+                  className="w-1/2 h-11 text-xs font-bold text-white bg-slate-900 hover:bg-black rounded-xl transition disabled:opacity-50 cursor-pointer"
                 >
-                  {saving ? 'Saving...' : 'Save'}
+                  {saving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
 
-            <div className="mt-4 pt-3 border-t border-gray-100">
+            <div className="mt-5 pt-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={saving || deleting}
-                className="w-full py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg disabled:opacity-50 cursor-pointer"
+                className="w-full py-2.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl disabled:opacity-50 transition cursor-pointer"
               >
                 {deleting ? 'Removing...' : '🗑️ Delete Player'}
               </button>
@@ -260,7 +341,6 @@ export default function MemberCard({ member, isAdmin }: MemberProps) {
         </div>
       )}
 
-      {/* QR Modal */}
       <UpiQrModal
         isOpen={showQr}
         onClose={() => setShowQr(false)}
