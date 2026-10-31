@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { createClient } from '@/lib/supabaseServer';
 import { getCurrentUserRole } from '@/lib/auth';
 import { MemberCard } from '@/components/MemberCard';
