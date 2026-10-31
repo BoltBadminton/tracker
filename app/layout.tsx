@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Badminton Club Tracker',
+  title: 'Bolt Badminton Club Tracker',
   description: 'Manage deposits and court/shuttle cost shares',
   manifest: '/manifest.json',
   appleWebApp: {
